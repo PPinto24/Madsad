@@ -1,0 +1,151 @@
+---
+title: "PedroPinto_ForecastingMail"
+output:
+  word_document: default
+  html_document: default
+date: '2022-06-23'
+---
+
+1- Import Data 
+```{r}
+setwd("~/Desktop/FEP/1.2/2. MPST/Assignment/2nd Assignment")
+library(forecast)
+library(urca)
+library(tseries)
+
+Airplane.total<-ts(scan("AirplaneTotal.txt"),start = c(2004,1), end= c(2019,12),deltat=1/12)
+Airplane.train <- ts(scan("AirplaneTrain.txt"), start = c(2004,1), end= c(2018,12),deltat=1/12)
+Airplane.test <- ts(scan("AirplaneTest.txt"), start = c(2019,1), end= c(2019,12),deltat=1/12)
+
+
+```
+
+2- Time Series Analisys
+```{r}
+plot(Airplane.total,ylab= "Number of Passengers", main= "Montlhy Passengers Boarding Airplanes in Portugal")
+
+monthplot(Airplane.total,ylab= "Number of Passengers", main= "Montlhy Passengers Boarding Airplanes in Portugal")
+boxplot(Airplane.total~cycle(Airplane.total),xlab="Month", ylab= "Number of Passengers", main= "Montlhy Passengers Boarding Airplanes in Portugal")
+
+seasonplot(Airplane.total,year.labels=TRUE, ylab= "Number of Passengers", main= "Seasonal Passengers Boarding Airplanes in Portugal", xlab = NULL)
+
+summary(Airplane.total)
+```
+
+3- Smoothing Methods
+```{r}
+#Holt-Winters Additive Method
+HW<-HoltWinters(Airplane.train, seasonal="multiplicative")
+HW
+forHW<-forecast(HW,h=12)
+pHW<-forHW$mean
+predict(HW,n.ahead=12)
+plot(forHW)
+```
+
+
+4- Decomposition Methods
+```{r}
+#Simple Decomposition
+decomp<-decompose(Airplane.train, type="m")
+plot(decomp)
+decomp
+trend.no.NA.m <- na.remove(decomp$trend)
+forecast.holt.m <- predict(HoltWinters(trend.no.NA.m,gamma=FALSE), n.ahead=18)
+forDecompNoTrend <- ts(forecast.holt.m[7:18],start=c(2019,1),deltat=1/12)
+pDecomp <- decomp$seasonal[1:12] * forDecompNoTrend
+pDecomp
+
+#STL
+STL <- stl(log(Airplane.train),s.window="periodic" ,robust=T, inner=2, outer=20)
+plot(STL, main="STL Decomposition")
+STL
+forSTL<-forecast(STL, h=12)
+pSTL<-exp(forSTL$mean)
+pSTL
+plot(forSTL)
+```
+
+
+5- Arima Model
+```{r}
+#Plot ACF and PACF with K< n/4
+par(mfrow=c(1,2))
+acf(Airplane.train,lag.max = 36)
+pacf(Airplane.train,lag.max = 36)
+par(mfrow=c(1,1))
+
+#In order to reduce the Variance of the time series we start by applying the log
+Airplane<- log(Airplane.train)
+plot(Airplane, ylab= "Number of Passengers", main= "Montlhy Passengers Boarding Airplanes in Portugal")
+par(mfrow=c(1,2))
+acf(Airplane,lag.max = 36)
+pacf(Airplane,lag.max = 36)
+par(mfrow=c(1,1))
+summary(ur.df(Airplane, type="none", lags=2))
+
+#Since it has Seasonality, we need to take seasonal difference
+NSAirplane<-diff(Airplane,lag=12)
+plot(NSAirplane)
+par(mfrow=c(1,2))
+acf(NSAirplane,lag.max = 36)
+pacf(NSAirplane,lag.max = 36)
+par(mfrow=c(1,1))
+
+#Perform an unit root test to see if the time series is stationary - We have Selected the ADF test
+summary(ur.df(NSAirplane, type="none", lags=2))
+
+#Since H0 is not rejected we need to perform a difference
+DifNSAirplane<-diff(NSAirplane)
+plot(DifNSAirplane)
+#Perform once again the unit root test
+summary(ur.df(DifNSAirplane, type="none", lags=2))
+
+#Plot ACF and PACF in order to understand where it cuts and tails off
+par(mfrow=c(1,2))
+acf(DifNSAirplane,lag.max = 36)
+pacf(DifNSAirplane,lag.max = 36)
+par(mfrow=c(1,1))
+
+#Confirm Which Arima Model is the best
+auto.arima(Airplane,d=1,D=1, max.p=1,max.q=1,max.P=2,max.Q=2, max.order=6,ic="aic",trace=T)
+#SARIMA Model
+SARIMAMan<-arima(Airplane, order=c(0,1,1),list(order=c(1,1,1),period=12))
+summary(SARIMAMan)
+checkresiduals(SARIMAMan)
+
+forSARIMAMan <- forecast(SARIMAMan,h=12)
+forSARIMAMan
+pSARIMAMan<-exp(forSARIMAMan$mean)
+pSARIMAMan
+plot(forSARIMAMan)
+
+#Sarima Best
+SARIMABest<-arima(Airplane, order=c(0,1,1),list(order=c(2,1,2),period=12))
+summary(SARIMABest)
+checkresiduals(SARIMABest)
+
+forSARIMABest <- forecast(SARIMABest,h=12)
+forSARIMABest
+pSARIMABest<-exp(forSARIMABest$mean)
+pSARIMABest
+plot(forSARIMABest)
+
+```
+
+6-Compare the Models
+```{r}
+sum((pHW-Airplane.test)^2)/12
+100/12*sum(abs(pHW-Airplane.test)/Airplane.test)
+sum((pDecomp-Airplane.test)^2)/12
+100/12*sum(abs(pDecomp-Airplane.test)/Airplane.test)
+sum((pSTL-Airplane.test)^2)/12
+100/12*sum(abs(pSTL-Airplane.test)/Airplane.test)
+sum((pSARIMAMan-Airplane.test)^2)/12
+100/12*sum(abs(pSARIMAMan-Airplane.test)/Airplane.test)
+sum((pSARIMABest-Airplane.test)^2)/12
+100/12*sum(abs(pSARIMABest-Airplane.test)/Airplane.test)
+
+cbind(Airplane.test,pHW,pDecomp,pSTL,pSARIMAMan,pSARIMABest)
+```
+

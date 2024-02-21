@@ -1,0 +1,93 @@
+---
+title: "Problem1"
+output: html_document
+---
+
+Problem 1 - Monte Carlo Method
+```{r}
+
+set.seed(47)
+
+mean.estimated <-function(nvalues){
+  x <- runif(nvalues)
+  y<-runif(nvalues)
+  theta.hat <- mean( (y*(x^2)) + (3*log(x*y+1)) )
+  
+}
+
+monte.carlo <- function(nreps,nvalues) {
+  estimativas <- NULL
+  for (i in 1:nreps){
+    estimativas[i] <- mean.estimated(nvalues)
+  }
+  return(estimativas)
+}
+
+montecarlo.runSeveralSamples<-function(nreps, nvalues){
+  for (size in nvalues){
+    simvalues <- monte.carlo(nreps ,size)
+    hist(simvalues,xlim = c(0.2,1.5), main=paste(nreps, "estimations with n=",size))
+    
+  }
+}
+
+sampleSizes= c(10, 50, 100, 500, 1000, 5000,10000)
+montecarlo.runSeveralSamples(200,sampleSizes)
+
+for (i in sampleSizes) {
+  print(mean(monte.carlo(200,i)))
+  print(sd(monte.carlo(200,i)))
+}
+
+```
+
+
+Problem 2 - Dist Normal with polar method
+```{r}
+
+polar.normal <- function(nvalues) {
+  x <- NULL
+  nx <- 0
+  
+  while (nx < nvalues) {
+    
+    U1 <- runif(1)
+    U2 <- runif(1)
+    
+    V1 <- U1*2 - 1
+    V2 <- U2*2 -1
+    
+    W = V1^2 + V2^2
+    
+    if (W <= 1) {
+      
+      C <- sqrt(-2*log(W)/W)
+      x[nx+1] <- C*V1
+      x[nx+2] <- C*V2
+      nx <- nx+2
+    }
+  }
+  return(x)
+}
+n<-100000
+Z <- polar.normal(n)
+
+X <- 5 + 2*Z
+temp <-mean(X)
+temp2<-var(X)
+hist(X,breaks=28,prob=TRUE,xlim=c(-2,12),ylim=c(0,0.4),main="N(5;4) by Polar Method with n = 100000")
+x.val <- seq(-2,12,0.001)
+lines(x.val,dnorm(x.val,5,2),col="blue")
+
+temp
+temp2
+
+#Approximation to QQ - Plot
+
+quantiles.pop = qnorm(seq(0.5/n,1,1/n), mean= 5, sd = 2)
+qq = cbind(sort(X), quantiles.pop)
+plot(qq, pch=".", xlim = c(-2,12), ylim = c(-2,12),xlab="X", ylab="Y", main="QQ plot for N = 100000")
+abline(0,1,col="green")
+
+```
+
